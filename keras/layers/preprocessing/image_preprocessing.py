@@ -22,6 +22,7 @@ from keras.engine import base_layer
 from keras.engine import base_preprocessing_layer
 from keras.layers.preprocessing import preprocessing_utils as utils
 from keras.utils import image_utils
+from absl import logging
 from keras.utils import tf_utils
 import numpy as np
 import tensorflow.compat.v2 as tf
@@ -35,6 +36,7 @@ W_AXIS = -2
 
 IMAGES = 'images'
 LABELS = 'labels'
+TARGETS = 'targets'
 BOUNDING_BOXES = 'bounding_boxes'
 
 
@@ -386,12 +388,12 @@ class BaseImageAugmentationLayer(base_layer.BaseRandomLayer):
   def call(self, inputs, training=True):
     inputs = self._ensure_inputs_are_compute_dtype(inputs)
     if training:
-      inputs, is_dict = self._format_inputs(inputs)
+      inputs, is_dict, use_targets = self._format_inputs(inputs)
       images = inputs[IMAGES]
       if images.shape.rank == 3:
-        return self._format_output(self._augment(inputs), is_dict)
+        return self._format_output(self._augment(inputs), is_dict, use_targets)
       elif images.shape.rank == 4:
-        return self._format_output(self._batch_augment(inputs), is_dict)
+        return self._format_output(self._batch_augment(inputs), is_dict, use_targets)
       else:
         raise ValueError('Image augmentation layers are expecting inputs to be '
                          'rank 3 (HWC) or 4D (NHWC) tensors. Got shape: '
@@ -422,17 +424,25 @@ class BaseImageAugmentationLayer(base_layer.BaseRandomLayer):
   def _format_inputs(self, inputs):
     if tf.is_tensor(inputs):
       # single image input tensor
-      return {IMAGES: inputs}, False
-    elif isinstance(inputs, dict):
+      return {IMAGES: inputs}, False, False
+    elif isinstance(inputs, dict) and TARGETS in inputs:
       # TODO(scottzhu): Check if it only contains the valid keys
-      return inputs, True
+      inputs[LABELS] = inputs[TARGETS]
+      del inputs[TARGETS]
+      return inputs, True, True
+    elif isinstance(inputs, dict):
+      return inputs, True, False
     else:
       raise ValueError(
           f'Expect the inputs to be image tensor or dict. Got {inputs}')
 
-  def _format_output(self, output, is_dict):
+  def _format_output(self, output, is_dict, use_targets):
     if not is_dict:
       return output[IMAGES]
+    elif use_targets:
+      output[TARGETS] = output[LABELS]
+      del output[LABELS]
+      return output
     else:
       return output
 
@@ -490,24 +500,16 @@ class RandomCrop(BaseImageAugmentationLayer):
     self.seed = seed
 
   def call(self, inputs, training=True):
-    inputs = self._ensure_inputs_are_compute_dtype(inputs)
-    inputs, is_dict = self._format_inputs(inputs)
+
     if training:
-      images = inputs['images']
-      if images.shape.rank == 3:
-        return self._format_output(self._augment(inputs), is_dict)
-      elif images.shape.rank == 4:
-        return self._format_output(self._batch_augment(inputs), is_dict)
-      else:
-        raise ValueError('Image augmentation layers are expecting inputs to be '
-                         'rank 3 (HWC) or 4D (NHWC) tensors. Got shape: '
-                         f'{images.shape}')
+      return super().call(inputs, training)
     else:
+      inputs = self._ensure_inputs_are_compute_dtype(inputs)
+      inputs, is_dict, targets = self._format_inputs(inputs)
       output = inputs
-      output['images'] = self._resize(inputs['images'])
       # self._resize() returns valid results for both batched and unbatched
-      # input
-      return self._format_output(output, is_dict)
+      output['images'] = self._resize(inputs['images'])
+      return self._format_output(output, is_dict, targets)
 
   def get_random_transformation(self,
                                 image=None,
