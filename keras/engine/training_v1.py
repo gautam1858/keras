@@ -607,6 +607,7 @@ class Model(training_lib.Model):
           class_weight=None,
           sample_weight=None,
           initial_epoch=0,
+          initial_step=0,
           steps_per_epoch=None,
           validation_steps=None,
           validation_freq=1,
@@ -706,6 +707,9 @@ class Model(training_lib.Model):
         initial_epoch: Integer.
             Epoch at which to start training
             (useful for resuming a previous training run).
+        initial_step: Integer.
+            Step at which to start training
+            (useful for resuming a previous training run).
         steps_per_epoch: Integer or `None`.
             Total number of steps (batches of samples)
             before declaring one epoch finished and starting the
@@ -787,6 +791,7 @@ class Model(training_lib.Model):
         class_weight=class_weight,
         sample_weight=sample_weight,
         initial_epoch=initial_epoch,
+        initial_step=initial_step,
         steps_per_epoch=steps_per_epoch,
         validation_steps=validation_steps,
         validation_freq=validation_freq,
@@ -1217,7 +1222,8 @@ class Model(training_lib.Model):
                     workers=1,
                     use_multiprocessing=False,
                     shuffle=True,
-                    initial_epoch=0):
+                    initial_epoch=0,
+                    initial_step=0):
     """Fits the model on data yielded batch-by-batch by a Python generator.
 
     DEPRECATED:
@@ -1243,7 +1249,8 @@ class Model(training_lib.Model):
         workers=workers,
         use_multiprocessing=use_multiprocessing,
         shuffle=shuffle,
-        initial_epoch=initial_epoch)
+        initial_epoch=initial_epoch,
+        initial_step=initial_step)
 
   def evaluate_generator(self,
                          generator,
@@ -2733,10 +2740,16 @@ class Model(training_lib.Model):
 
   @property
   def _feed_sample_weights(self):
-    return [e.sample_weight for e in self._training_endpoints
-            if e.sample_weight is not None]
+    return [
+        e.sample_weight
+        for e in self._training_endpoints
+        if e.sample_weight is not None
+    ]
 
-  def _maybe_load_initial_epoch_from_ckpt(self, initial_epoch, mode):
+  def _maybe_load_initial_epoch_from_ckpt(self,
+                                          initial_epoch,
+                                          mode,
+                                          initial_step=0):
     """Maybe load initial epoch from ckpt considering possible worker recovery.
 
     Refer to tensorflow/python/keras/distribute/worker_training_state.py
@@ -2745,16 +2758,18 @@ class Model(training_lib.Model):
     Args:
       initial_epoch: The original initial_epoch user passes in in `fit()`.
       mode: The mode for running `model.fit()`.
+      initial_step: The original initial_step user passes in in `fit()`.
 
     Returns:
       If the training is recovering from previous failure under multi-worker
-      training setting, return the epoch the training is supposed to continue
-      at. Otherwise, return the `initial_epoch` the user passes in.
+      training setting, return the (epoch, step) the training is supposed to
+      continue at. Otherwise, return the `initial_epoch, initial_step` the user
+      passes in.
     """
     if self._training_state is not None:
       return self._training_state.maybe_load_initial_epoch_from_ckpt(
-          initial_epoch, mode)
-    return initial_epoch
+          initial_epoch, mode, initial_step=initial_step)
+    return (initial_epoch, initial_step)
 
   def _get_training_eval_metrics(self):
     """Returns all the metrics that are to be reported.

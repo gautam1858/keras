@@ -1101,6 +1101,7 @@ class DataHandler:
                batch_size=None,
                steps_per_epoch=None,
                initial_epoch=0,
+               initial_step=0,
                epochs=1,
                shuffle=False,
                class_weight=None,
@@ -1119,6 +1120,7 @@ class DataHandler:
       batch_size: See `Model.fit`.
       steps_per_epoch: See `Model.fit`.
       initial_epoch: See `Model.fit`.
+      initial_step: See `Model.fit`.
       epochs: See `Model.fit`.
       shuffle: See `Model.fit`.
       class_weight: See `Model.fit`.
@@ -1134,7 +1136,7 @@ class DataHandler:
     """
 
     self._initial_epoch = initial_epoch
-    self._initial_step = 0
+    self._initial_step = initial_step
     self._epochs = epochs
     self._insufficient_data = False
     self._model = model

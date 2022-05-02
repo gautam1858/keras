@@ -115,6 +115,7 @@ def experimental_tpu_fit_loop(model,
                               verbose=1,
                               callbacks=None,
                               initial_epoch=0,
+                              initial_step=0,
                               steps_per_epoch=None,
                               val_dataset=None,
                               validation_steps=None,
@@ -128,6 +129,8 @@ def experimental_tpu_fit_loop(model,
       verbose: Integer, Verbosity mode, 0, 1 or 2
       callbacks: List of callbacks to be called during training
       initial_epoch: Epoch at which to start training
+          (useful for resuming a previous training run)
+      initial_step: step at which to start training
           (useful for resuming a previous training run)
       steps_per_epoch: Total number of steps (batches of samples)
           before declaring one epoch finished and starting the
@@ -211,15 +214,16 @@ def experimental_tpu_fit_loop(model,
 
   callbacks._call_begin_hook(mode)
 
-  initial_epoch = model._maybe_load_initial_epoch_from_ckpt(initial_epoch, mode)
+  initial_epoch, initial_step = model._maybe_load_initial_epoch_from_ckpt(
+      initial_epoch, mode, initial_step=initial_step)
 
   for epoch in range(initial_epoch, epochs):
     dist_utils._reset_metrics(model)
     callbacks.on_epoch_begin(epoch)
     epoch_logs = {}
-    step_index = 0
+    step_index = initial_step
     prev_step_count = None
-    current_step = 0
+    current_step = initial_step
     while current_step < target_steps:
       step_count = steps_to_run[current_step]
       batch_logs = {'batch': step_index, 'size': 1, 'num_steps': step_count}
@@ -269,6 +273,8 @@ def experimental_tpu_fit_loop(model,
     callbacks.on_epoch_end(epoch, epoch_logs)
     if callbacks.model.stop_training:
       break
+    initial_step = 0
+
   model._successful_loop_finish = True
   callbacks._call_end_hook(mode)
 
@@ -582,6 +588,7 @@ class DistributionSingleWorkerTrainingLoop(training_utils_v1.TrainingLoop):
           class_weight=None,
           sample_weight=None,
           initial_epoch=0,
+          initial_step=0,
           steps_per_epoch=None,
           validation_steps=None,
           validation_freq=1,
@@ -656,6 +663,7 @@ class DistributionSingleWorkerTrainingLoop(training_utils_v1.TrainingLoop):
             callbacks=callbacks,
             val_dataset=val_dataset,
             initial_epoch=initial_epoch,
+            initial_step=initial_step,
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
             validation_freq=validation_freq)
@@ -670,6 +678,7 @@ class DistributionSingleWorkerTrainingLoop(training_utils_v1.TrainingLoop):
         val_inputs=val_dataset,
         shuffle=shuffle,
         initial_epoch=initial_epoch,
+        initial_step=initial_step,
         steps_per_epoch=steps_per_epoch,
         validation_steps=validation_steps,
         validation_freq=validation_freq,

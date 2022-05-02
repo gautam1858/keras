@@ -47,6 +47,7 @@ def model_iteration(model,
                     use_multiprocessing=False,
                     shuffle=False,
                     initial_epoch=0,
+                    initial_step=0,
                     mode=ModeKeys.TRAIN,
                     batch_size=None,
                     steps_name='steps',
@@ -96,6 +97,8 @@ def model_iteration(model,
         (`keras.utils.Sequence`). Has no effect when `steps_per_epoch` is not
         `None`.
       initial_epoch: Epoch at which to start training (useful for resuming a
+        previous training run).
+      initial_step: Step at which to start training (useful for resuming a
         previous training run).
       mode: One of ModeKeys.TRAIN/ModeKeys.TEST/ModeKeys.PREDICT.
       batch_size: Integer batch size or None if unknown. Will only be used if
@@ -188,7 +191,8 @@ def model_iteration(model,
   callbacks.model.stop_training = False
   callbacks._call_begin_hook(mode)
 
-  initial_epoch = model._maybe_load_initial_epoch_from_ckpt(initial_epoch, mode)
+  initial_epoch, initial_step = model._maybe_load_initial_epoch_from_ckpt(
+      initial_epoch, mode, initial_step=initial_step)
 
   for epoch in range(initial_epoch, epochs):
     if callbacks.model.stop_training:
@@ -207,7 +211,7 @@ def model_iteration(model,
       # Loop over dataset for the specified number of steps.
       target_steps = steps_per_epoch
 
-    step = 0
+    step = initial_step
     while step < target_steps:
       batch_data = _get_next_batch(generator)
       if batch_data is None:
@@ -317,6 +321,7 @@ def model_iteration(model,
     # Recreate dataset iterator for the next epoch.
     if reset_dataset_after_each_epoch and epoch < epochs - 1:
       generator = tf.compat.v1.data.make_one_shot_iterator(original_dataset)
+    initial_step = 0
 
   model._successful_loop_finish = True
   callbacks._call_end_hook(mode)
@@ -558,6 +563,7 @@ class GeneratorOrSequenceTrainingLoop(training_utils_v1.TrainingLoop):
           class_weight=None,
           sample_weight=None,
           initial_epoch=0,
+          initial_step=0,
           steps_per_epoch=None,
           validation_steps=None,
           validation_freq=1,
@@ -583,6 +589,7 @@ class GeneratorOrSequenceTrainingLoop(training_utils_v1.TrainingLoop):
         use_multiprocessing=use_multiprocessing,
         shuffle=shuffle,
         initial_epoch=initial_epoch,
+        initial_step=initial_step,
         steps_name='steps_per_epoch')
 
   def evaluate(self,
@@ -648,6 +655,7 @@ class EagerDatasetOrIteratorTrainingLoop(training_utils_v1.TrainingLoop):
           class_weight=None,
           sample_weight=None,
           initial_epoch=0,
+          initial_step=0,
           steps_per_epoch=None,
           validation_steps=None,
           validation_freq=1,
@@ -674,6 +682,7 @@ class EagerDatasetOrIteratorTrainingLoop(training_utils_v1.TrainingLoop):
         workers=0,
         shuffle=shuffle,
         initial_epoch=initial_epoch,
+        initial_step=initial_step,
         steps_name='steps_per_epoch')
 
   def evaluate(self,
@@ -728,6 +737,7 @@ class GeneratorLikeTrainingLoop(training_utils_v1.TrainingLoop):
           class_weight=None,
           sample_weight=None,
           initial_epoch=0,
+          initial_step=0,
           steps_per_epoch=None,
           validation_steps=None,
           validation_freq=1,
@@ -774,6 +784,7 @@ class GeneratorLikeTrainingLoop(training_utils_v1.TrainingLoop):
         workers=0,
         shuffle=shuffle,
         initial_epoch=initial_epoch,
+        initial_step=initial_step,
         steps_name='steps_per_epoch')
 
   def evaluate(self,

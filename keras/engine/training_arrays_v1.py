@@ -49,6 +49,7 @@ def model_iteration(model,
                     val_sample_weights=None,
                     shuffle=True,
                     initial_epoch=0,
+                    initial_step=0,
                     steps_per_epoch=None,
                     validation_steps=None,
                     validation_freq=1,
@@ -79,6 +80,8 @@ def model_iteration(model,
         concatenation of list the display names of the outputs of `f` and the
         list of display names of the outputs of `f_val`.
       initial_epoch: Epoch at which to start training (useful for resuming a
+        previous training run)
+      initial_step: Step at which to start training (useful for resuming a
         previous training run)
       steps_per_epoch: Total number of steps (batches of samples) before
         declaring one epoch finished and starting the next epoch. Ignored with
@@ -246,7 +249,8 @@ def model_iteration(model,
   callbacks.model.stop_training = False
   callbacks._call_begin_hook(mode)
 
-  initial_epoch = model._maybe_load_initial_epoch_from_ckpt(initial_epoch, mode)
+  initial_epoch, initial_step = model._maybe_load_initial_epoch_from_ckpt(
+      initial_epoch, mode, initial_step=initial_step)
 
   for epoch in range(initial_epoch, epochs):
     if callbacks.model.stop_training:
@@ -270,7 +274,7 @@ def model_iteration(model,
         # Loop over dataset for the specified number of steps.
         target_steps = steps_per_epoch
 
-      step = 0
+      step = initial_step
       while step < target_steps:
         batch_logs = {'batch': step, 'size': 1}
         callbacks._call_batch_hook(mode, 'begin', step, batch_logs)
@@ -335,6 +339,7 @@ def model_iteration(model,
 
         if callbacks.model.stop_training:
           break
+      initial_step = 0
     else:
       # Sample-wise loop.
       index_array = np.arange(num_samples_or_steps)
@@ -606,6 +611,7 @@ class ArrayLikeTrainingLoop(training_utils_v1.TrainingLoop):
           class_weight=None,
           sample_weight=None,
           initial_epoch=0,
+          initial_step=0,
           steps_per_epoch=None,
           validation_steps=None,
           validation_freq=1,
@@ -652,6 +658,7 @@ class ArrayLikeTrainingLoop(training_utils_v1.TrainingLoop):
         val_sample_weights=val_sample_weights,
         shuffle=shuffle,
         initial_epoch=initial_epoch,
+        initial_step=initial_step,
         steps_per_epoch=steps_per_epoch,
         validation_steps=validation_steps,
         validation_freq=validation_freq,
